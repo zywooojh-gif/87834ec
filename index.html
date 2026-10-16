@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FFFFFF">
+<meta name="format-detection" content="telephone=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="English Chat">
 <title>English Chat</title>
 <style>
 :root{--ease:cubic-bezier(.32,.72,0,1);--fs:16px}
@@ -13,23 +18,30 @@
 
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-html{font-size:var(--fs);height:100%}
-body{margin:0;height:100%;background:var(--stage);color:var(--text);
+html{font-size:var(--fs);height:100%;background:var(--topbg,var(--bg));-webkit-text-size-adjust:100%;text-size-adjust:100%;overflow:hidden;overscroll-behavior:none;transition:background-color .4s var(--ease)}
+html[data-theme="night"]{color-scheme:dark}
+body{margin:0;height:100%;background:var(--topbg,var(--bg));color:var(--text);
   font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC","Helvetica Neue",Arial,sans-serif;
-  -webkit-font-smoothing:antialiased;display:grid;place-items:center;transition:background .4s}
-button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  -webkit-font-smoothing:antialiased;display:grid;place-items:center;overflow:hidden;overscroll-behavior:none;transition:background-color .4s var(--ease)}
+button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 input,textarea{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .ic{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
 
 /* ---------- phone frame ---------- */
-.phone{position:relative;width:100vw;height:100vh;height:100dvh;overflow:hidden;background:var(--bg);isolation:isolate}
-@media (min-width:500px){
-  .phone{width:402px;height:min(860px,calc(100dvh - 40px));border-radius:42px;box-shadow:0 30px 80px var(--shadow),0 0 0 1px rgba(0,0,0,.05)}
+.phone{position:fixed;inset:0;overflow:hidden;background:var(--bg);isolation:isolate}
+/* 平板 / 手机横屏：居中，最宽 560px，高度仍占满 */
+@media (min-width:600px){
+  .phone{left:0;right:0;margin:0 auto;width:min(100vw,560px)}
+}
+/* 只有电脑（有鼠标）才显示手机外框 */
+@media (min-width:500px) and (hover:hover) and (pointer:fine){
+  body{background:var(--stage)}
+  .phone{position:relative;inset:auto;margin:0;width:402px;height:min(860px,calc(100dvh - 40px));border-radius:42px;box-shadow:0 30px 80px var(--shadow),0 0 0 1px rgba(0,0,0,.05)}
 }
 
 /* ---------- screens & push transition ---------- */
-.screen{position:absolute;inset:0;background:var(--bg);display:flex;flex-direction:column;
+.screen{position:absolute;inset:0;background:var(--bg);display:flex;flex-direction:column;padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);
   transform:translateX(100%);visibility:hidden;
   transition:transform .42s var(--ease),visibility 0s .42s}
 .screen::after{content:"";position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .42s var(--ease)}
@@ -51,7 +63,7 @@ input,textarea{font:inherit;color:inherit;-webkit-tap-highlight-color:transparen
 .hbar h1{margin:0;font-size:1.8rem;font-weight:700;letter-spacing:-.01em}
 .round{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);transition:transform .2s var(--ease),background .2s}
 .round:active{transform:scale(.9)}
-#list{padding-bottom:104px}
+#list{padding-bottom:calc(104px + env(safe-area-inset-bottom))}
 .row{position:relative;display:flex;align-items:center;gap:14px;width:100%;padding:12px 20px;text-align:left;transition:background .15s}
 .row:active{background:var(--surface2)}
 .row::after{content:"";position:absolute;left:86px;right:0;bottom:0;height:1px;background:var(--line)}
@@ -96,7 +108,7 @@ input,textarea{font:inherit;color:inherit;-webkit-tap-highlight-color:transparen
 .icon-btn:active{background:var(--surface2);transform:scale(.9)}
 
 /* ---------- forms ---------- */
-.form{padding-bottom:44px}
+.form{padding-bottom:calc(44px + env(safe-area-inset-bottom))}
 .avatar-pick{display:flex;flex-direction:column;align-items:center;padding:14px 0 6px}
 .avatar-btn{position:relative;border-radius:50%;transition:transform .25s var(--ease)}
 .avatar-btn:active{transform:scale(.95)}
@@ -253,7 +265,7 @@ input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;bac
 .ask:active{transform:scale(.95)}
 .ask .ic{width:16px;height:16px}
 .ask:disabled{opacity:.6}
-.board{display:flex;gap:16px;align-items:flex-start;padding:16px 18px 44px}
+.board{display:flex;gap:16px;align-items:flex-start;padding:16px 18px calc(44px + env(safe-area-inset-bottom))}
 .bcol{flex:1;min-width:0;display:flex;flex-direction:column;gap:20px}
 .sticky{position:relative;display:block;width:100%;padding:22px 14px 12px;border-radius:3px 3px 14px 3px;background:var(--paper);color:#3B3836;text-align:left;
   font-family:var(--hand);box-shadow:0 8px 18px rgba(0,0,0,.10),0 1px 2px rgba(0,0,0,.10);transform:rotate(var(--rot));transition:transform .3s var(--ease),box-shadow .3s}
@@ -378,6 +390,9 @@ input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;bac
   background:rgba(32,34,38,.92);color:#fff;padding:10px 18px;border-radius:999px;font-size:.88rem;white-space:nowrap;transition:transform .4s var(--ease),opacity .3s}
 .toast.show{transform:translate(-50%,0);opacity:1}
 
+/* 手机：输入框字号不小于 16px，避免 iPhone 聚焦时自动放大页面；长按菜单不被系统选字菜单抢走 */
+@media (pointer:coarse){input,textarea{font-size:max(16px,1rem)!important}}
+.ftext,.sub,.nd-text,.nd-title{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important}}
 </style>
 </head>
@@ -754,7 +769,7 @@ function save() {
 const getF = id => state.friends.find(f => f.id === id);
 const shown = f => f.remark || f.name;
 
-function applyTheme() { document.documentElement.dataset.theme = THEMES.some(t => t.id === state.settings.theme) ? state.settings.theme : 'mist'; }
+function applyTheme() { document.documentElement.dataset.theme = THEMES.some(t => t.id === state.settings.theme) ? state.settings.theme : 'mist'; if (typeof syncChrome === 'function' && typeof stack !== 'undefined') syncChrome(); }
 function applyFont() { document.documentElement.style.setProperty('--fs', (FS[state.settings.fontSize] || 16) + 'px'); }
 
 /* =============================== 头像 =============================== */
@@ -794,6 +809,15 @@ fileInput.addEventListener('change', () => {
 const phone = $('#phone');
 const screens = $$('.screen');
 let stack = ['home'];
+const metaTheme = document.querySelector('meta[name="theme-color"]');
+function syncChrome() {
+  const top = stack[stack.length - 1];
+  let c = (getComputedStyle(document.documentElement).getPropertyValue(top === 'home' ? '--surface' : '--bg') || '').trim();
+  if (!c) { const el = screens.find(x => x.dataset.id === top); c = el ? getComputedStyle(el).backgroundColor : ''; }
+  if (!c) return;
+  document.documentElement.style.setProperty('--topbg', c);
+  if (metaTheme) metaTheme.setAttribute('content', c);
+}
 function layout() {
   const top = stack.length - 1;
   screens.forEach(el => {
@@ -803,6 +827,7 @@ function layout() {
     el.inert = i !== top;
     el.style.zIndex = i > -1 ? i + 1 : 10;
   });
+  syncChrome();
 }
 function push(id) { closeDrawer(); closePop(); stack.push(id); layout(); }
 function pop() { if (stack.length > 1) { stack.pop(); layout(); } }
