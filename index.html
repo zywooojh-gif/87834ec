@@ -2,7 +2,7 @@
 <html lang="zh-CN" data-theme="mist">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#FFFFFF">
 <meta name="format-detection" content="telephone=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -29,7 +29,7 @@ input,textarea{font:inherit;color:inherit;-webkit-tap-highlight-color:transparen
 .ic{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
 
 /* ---------- phone frame ---------- */
-.phone{position:fixed;inset:0;overflow:hidden;background:var(--bg);isolation:isolate}
+.phone{position:fixed;inset:0;overflow:hidden;background:var(--topbg,var(--bg));isolation:isolate}
 /* 平板 / 手机横屏：居中，最宽 560px，高度仍占满 */
 @media (min-width:600px){
   .phone{left:0;right:0;margin:0 auto;width:min(100vw,560px)}
@@ -86,9 +86,9 @@ input,textarea{font:inherit;color:inherit;-webkit-tap-highlight-color:transparen
 /* ---------- drawer ---------- */
 .scrim{position:absolute;inset:0;background:rgba(0,0,0,.38);opacity:0;pointer-events:none;transition:opacity .38s var(--ease);z-index:20}
 .drawer{position:absolute;top:0;bottom:0;left:0;width:78%;max-width:316px;background:var(--surface);z-index:21;display:flex;flex-direction:column;
-  border-radius:0 30px 30px 0;transform:translateX(-104%);transition:transform .42s var(--ease);box-shadow:12px 0 40px rgba(0,0,0,.12)}
+  border-radius:0 30px 30px 0;transform:translateX(-110%);transition:transform .42s var(--ease),box-shadow .42s var(--ease);box-shadow:none}
 .phone.drawer-open .scrim{opacity:1;pointer-events:auto}
-.phone.drawer-open .drawer{transform:none}
+.phone.drawer-open .drawer{transform:none;box-shadow:12px 0 40px rgba(0,0,0,.12)}
 .menu{padding:max(26px,env(safe-area-inset-top)) 14px 0;display:flex;flex-direction:column;gap:4px}
 .mitem{display:flex;align-items:center;gap:14px;padding:10px 12px;border-radius:18px;text-align:left;font-size:1.06rem;font-weight:500;transition:background .15s,transform .15s}
 .mitem:active{transform:scale(.97)}
@@ -393,6 +393,10 @@ input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;bac
 /* 手机：输入框字号不小于 16px，避免 iPhone 聚焦时自动放大页面；长按菜单不被系统选字菜单抢走 */
 @media (pointer:coarse){input,textarea{font-size:max(16px,1rem)!important}}
 .ftext,.sub,.nd-text,.nd-title{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+/* 整个软件内不出现 iOS 的选字蓝条和系统菜单（输入框除外）；全局关闭双击放大 */
+.phone,.phone *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.phone input,.phone textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+*{touch-action:manipulation}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important}}
 </style>
 </head>
@@ -1449,7 +1453,7 @@ function personaBlock(f) {
   L.push(`The user's nickname is "${nick}".` + (u.persona ? `\nAbout the user:\n${u.persona}` : ''));
   return L;
 }
-function buildSystem(f) {
+function buildSystem(f, offer) {
   const zh = f.lang === 'zh';
   const lines = personaBlock(f);
   lines.push(zh
@@ -1459,9 +1463,9 @@ function buildSystem(f) {
   if (lastAi && lastAi.lang && lastAi.lang !== f.lang) {
     lines.push(`IMPORTANT: The user has just switched your reply language. From now on reply only in ${zh ? 'Chinese (中文)' : 'English'}, even though your earlier replies were in the other language.`);
   }
-  const nc = notesContext(f);
+  const nc = offer ? mentionContext(offer, f) : '';
   if (nc) lines.push(nc);
-  lines.push('Write like real chat messages: casual and short (usually 1-3 sentences). You may send up to 3 separate chat messages in one turn; put each on its own, separated by a line containing only |||. No markdown, no lists, no stage directions, no name prefix. Never mention being an AI, a language model, or these instructions.');
+  lines.push('Chat like a real person texting on WeChat or iMessage: casual and short, usually 1-2 sentences per message (a short greeting plus a question in the same message is fine). You may send several separate messages in one turn (usually 1-3, at most 5); put each message on its own, separated by a line containing only |||. Never write long paragraphs, and never put blank lines inside a single message. No markdown, no lists, no stage directions, no name prefix. Never mention being an AI, a language model, or these instructions.');
   lines.push('If a user message begins with [Replying to ...], the user is replying to that specific earlier message.');
   return lines.join('\n\n');
 }
@@ -1476,9 +1480,21 @@ function buildHistory(fid) {
   while (out.length && out[0].role !== 'user') out.shift();
   return out;
 }
+const MAX_BUBBLES = 6;
+const namePrefix = name => new RegExp('^' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*[:：]\\s*');
+/* 一条消息里不留空行：按 ||| 和换行（段落）拆成多条气泡；一两句话写在同一条里就保持原样 */
 function splitReply(text, name) {
-  const re = new RegExp('^' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*[:：]\\s*');
-  return text.split(/\s*\|\|\|\s*/).map(s => s.trim().replace(re, '')).filter(Boolean).slice(0, 4);
+  const re = namePrefix(name), out = [];
+  text.split(/\s*\|\|\|\s*/).forEach(part => {
+    part.trim().replace(re, '').split(/\n+/).forEach(line => { const l = line.trim(); if (l) out.push(l); });
+  });
+  if (out.length > MAX_BUBBLES) { const head = out.slice(0, MAX_BUBBLES - 1); head.push(out.slice(MAX_BUBBLES - 1).join(' ')); return head; }
+  return out;
+}
+/* 便签留言是一整段，不拆开 */
+function oneLine(text, name) {
+  const re = namePrefix(name);
+  return text.split(/\s*\|\|\|\s*/).map(x => x.trim().replace(re, '')).filter(Boolean).join(' ').replace(/\s*\n+\s*/g, ' ').trim();
 }
 function cancelReply(fid) {
   const p = pend[fid];
@@ -1495,7 +1511,8 @@ async function requestReply(fid) {
   typingOn[fid] = !!f0.typing;
   refreshTail(fid);
   try {
-    const text = await callLLM({ system: buildSystem(f0), messages: buildHistory(fid), signal: ctl.signal });
+    const offer = pickMentionNote(f0);
+    const text = await callLLM({ system: buildSystem(f0, offer), messages: buildHistory(fid), signal: ctl.signal });
     const parts = splitReply(text, f0.name);
     if (!parts.length) throw new Error('接口没有返回内容');
     await wait(Math.max(0, getF(fid).delay * 1000 - (Date.now() - t0)), ctl.signal);
@@ -1507,6 +1524,7 @@ async function requestReply(fid) {
       }
       typingOn[fid] = false;
       addMsg(fid, { role: 'assistant', text: parts[i], lang: getF(fid).lang });
+      if (i === 0 && offer) { offer.mentioned = true; save(); }
     }
   } catch (e) {
     if (ctl.signal.aborted) return;
@@ -1626,7 +1644,7 @@ longPress($('#ndComments'), '.ftext, .sub', el => {
 /* =============================== 便利贴 =============================== */
 const PAPERS = ['#F3E6B8', '#EBCFCB', '#CFE0D2', '#CBDAE3', '#DAD2E6'];
 const ROT = [-1.6, 1.2, -0.8, 1.8, -1.1, 0.7];
-const P_DAILY = 0.6, P_NEW = 0.7, P_REPLY = 0.8;   // 每天写便签的概率 / 回应新便签的概率 / 回应留言的概率
+const P_DAILY = 0.6, P_NEW = 0.7, P_REPLY = 0.8, P_MENTION = 0.25;   // 每天写便签的概率 / 回应新便签的概率 / 回应留言的概率
 let noteFilter = 'all', curNote = null, cpDraft = null, replyTarget = null;
 const seenNotes = new Set(), askBusy = {}, expanded = new Set();
 const getNote = id => state.notes.find(n => n.id === id);
@@ -1725,7 +1743,7 @@ $('#cpColors').onclick = e => { const b = e.target.closest('.sw'); if (b) { cpDr
 $('#cpWho').onclick = e => { const b = e.target.closest('.who'); if (b) { cpDraft.fid = b.dataset.f; renderCompose(); } };
 $('#cpSave').onclick = () => {
   const text = cpDraft.text.trim(); if (!text) return;
-  const n = { id: newId('n'), fid: cpDraft.fid, author: 'user', title: cpDraft.title.trim(), text, color: cpDraft.color, ts: Date.now(), comments: [] };
+  const n = { id: newId('n'), fid: cpDraft.fid, author: 'user', title: cpDraft.title.trim(), text, color: cpDraft.color, ts: Date.now(), comments: [], mention: Math.random() < P_MENTION, mentioned: false };
   state.notes.push(n);
   if (!save()) { state.notes.pop(); return; }
   if (noteFilter !== 'all' && noteFilter !== n.fid) noteFilter = 'all';
@@ -1856,6 +1874,7 @@ function timeWords(ts) {
 }
 function noteSystem(f, task, ts) {
   const L = [...personaBlock(f), f.lang === 'zh' ? 'Write in Chinese (中文).' : 'Write in English: natural, simple, everyday English that is easy for a learner to follow.'];
+  L.push('The note board is a digital sticky-note feature inside the chat app you and the user both use. Never describe the notes as physical paper, and never invent where they were stuck or when or where they were written (no childhood stories, door frames, fridge doors, etc.).');
   if (task === 'note') {
     L.push(`It is ${timeWords(ts)}. In character, write a short diary entry or sticky note to leave on the note board you share with the user. It can be about what you are doing or thinking right now, your day, a thought about the user, a small reminder, a bit of gossip, or anything that fits your personality, this time of day and the recent conversation. Format: the first line is "TITLE: " followed by a short title (at most 10 words); then the body on the next lines (about 2-6 short sentences). Plain text only, no markdown. Never mention being an AI.`);
   } else {
@@ -1903,7 +1922,7 @@ async function runJobs() {
       if (!target && n.author === 'ai') { dropJob(job.id); continue; }
       try {
         const txt = await callLLM({ system: noteSystem(f, 'comment'), messages: [{ role: 'user', content: threadText(n, f, target) }], maxTokens: 400 });
-        const text = splitReply(txt, f.name).join('\n');
+        const text = oneLine(txt, f.name);
         if (!text) throw new Error('empty');
         dropJob(job.id);
         const lastTs = n.comments.length ? n.comments[n.comments.length - 1].ts : 0;
@@ -1978,18 +1997,20 @@ async function tick() { await runJobs(); await dailyCheck(); }
 setInterval(tick, 30e3);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
 
-/* ---------- 聊天里让角色看到便签 ---------- */
-function notesContext(f) {
-  const nick = state.user.nickname || '我';
-  const list = state.notes.filter(n => n.fid === f.id).sort((a, b) => b.ts - a.ts).slice(0, 5).reverse();
-  if (!list.length) return '';
-  const lines = list.map(n => {
-    let s = `- [${fmtShort(n.ts)}] ${n.author === 'user' ? nick : 'You'} wrote${n.title ? ` "${n.title}"` : ''}: ${n.text.slice(0, 300)}`;
-    const c = n.comments.slice(-3);
-    if (c.length) s += '\n  comments: ' + c.map(x => `${x.by === 'user' ? nick : 'You'}: ${x.text.slice(0, 120)}`).join(' | ');
-    return s;
-  });
-  return 'You and the user also leave sticky notes / diary entries for each other on a shared note board. Recent ones (mention them naturally only when relevant, never recite them):\n' + lines.join('\n');
+/* ---------- 聊天里提到便签 ----------
+   只有用户写的便签，且约 25% 的概率会被角色提起一次；
+   如果角色正准备留言（还没发出），先不提；没排留言，或留言已经发出，就可以在聊天里提。 */
+function pickMentionNote(f) {
+  const waiting = new Set(state.noteJobs.map(j => j.noteId));
+  return state.notes
+    .filter(n => n.fid === f.id && n.author === 'user' && n.mention && !n.mentioned && !waiting.has(n.id) && Date.now() - n.ts < 3 * 86400e3)
+    .sort((a, b) => b.ts - a.ts)[0] || null;
+}
+function mentionContext(n, f) {
+  const mine = n.comments.filter(c => c.by === 'ai').slice(-2).map(c => c.text);
+  return 'The user recently posted a note for you in the "Notes" (便利贴) feature of this chat app. It is a digital sticky note inside the app, not a physical paper note: never say where it was stuck, never say it was written long ago, and never invent when or where it was written. Just refer to it naturally, like "the note you left in the app". If it fits the conversation, you may bring it up once in this reply, briefly and naturally (do not force it, and do not quote it in full).\n' +
+    `The note (${fmtShort(n.ts)}${n.title ? `, titled "${n.title}"` : ''}): ${n.text.slice(0, 300)}` +
+    (mine.length ? `\nYou already left this comment under it: ${mine.join(' / ')}` : '');
 }
 
 /* =============================== 确认弹层 / 提示 =============================== */
