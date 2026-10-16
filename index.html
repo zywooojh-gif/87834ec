@@ -29,7 +29,7 @@ input,textarea{font:inherit;color:inherit;-webkit-tap-highlight-color:transparen
 .ic{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
 
 /* ---------- phone frame ---------- */
-.phone{position:fixed;inset:0;overflow:hidden;background:var(--topbg,var(--bg));isolation:isolate}
+.phone{position:fixed;inset:0;overflow:hidden;background:transparent;isolation:isolate}
 /* 平板 / 手机横屏：居中，最宽 560px，高度仍占满 */
 @media (min-width:600px){
   .phone{left:0;right:0;margin:0 auto;width:min(100vw,560px)}
@@ -393,6 +393,10 @@ input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;bac
 /* 手机：输入框字号不小于 16px，避免 iPhone 聚焦时自动放大页面；长按菜单不被系统选字菜单抢走 */
 @media (pointer:coarse){input,textarea{font-size:max(16px,1rem)!important}}
 .ftext,.sub,.nd-text,.nd-title{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+/* 状态栏取色条：新版 iOS Safari 按页面顶端 fixed 元素的底色给状态栏上色，且只在元素出现时取色，
+   所以每次切换页面都换上一条新的、颜色与当前页面顶部一致的细条（看不出来，只用来取色） */
+.topTint{position:fixed;top:0;left:0;right:0;height:max(env(safe-area-inset-top,0px),14px);z-index:15;pointer-events:none}
+@media (min-width:600px){.topTint{display:none}}
 /* 整个软件内不出现 iOS 的选字蓝条和系统菜单（输入框除外）；全局关闭双击放大 */
 .phone,.phone *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .phone input,.phone textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
@@ -814,6 +818,14 @@ const phone = $('#phone');
 const screens = $$('.screen');
 let stack = ['home'];
 const metaTheme = document.querySelector('meta[name="theme-color"]');
+let tintTimer = null, tintFirst = true;
+function setTint(c) {
+  const old = phone.querySelector('.topTint');
+  const el = document.createElement('div');
+  el.className = 'topTint'; el.style.backgroundColor = c;
+  phone.appendChild(el);
+  if (old) old.remove();
+}
 function syncChrome() {
   const top = stack[stack.length - 1];
   let c = (getComputedStyle(document.documentElement).getPropertyValue(top === 'home' ? '--surface' : '--bg') || '').trim();
@@ -821,6 +833,9 @@ function syncChrome() {
   if (!c) return;
   document.documentElement.style.setProperty('--topbg', c);
   if (metaTheme) metaTheme.setAttribute('content', c);
+  clearTimeout(tintTimer);
+  if (tintFirst) { tintFirst = false; setTint(c); }
+  else tintTimer = setTimeout(() => setTint(c), 180);   /* 等页面滑到一半再换色，过渡更自然 */
 }
 function layout() {
   const top = stack.length - 1;
